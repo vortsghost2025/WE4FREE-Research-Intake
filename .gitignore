@@ -1,7 +1,7 @@
 .aider*
 node_modules/
 dist/
-output/
+/output/
 .env
 *.js.map
 *.d.ts.map

@@ -38,6 +38,29 @@ export function generateBriefing(scored: ScoredArtifact[], briefingDir: string):
   });
 
   fs.writeFileSync(filepath, lines.join('\n'));
-  console.log(`[output:briefing] Wrote briefing to ${filepath}`);
+
+  console.log('');
+  console.log('=== BRIEFING REPORT ===');
+  console.log(`Total findings: ${scored.length}`);
+  console.log(`Top findings shown: ${topFindings.length}`);
+  console.log(`Briefing saved to: ${filepath}`);
+  if (topFindings.length > 0) {
+    console.log('');
+    topFindings.forEach((s, i) => {
+      console.log(`Finding ${i + 1}:`);
+      console.log(`  Title: ${s.artifact.title}`);
+      console.log(`  Source: ${s.artifact.source}`);
+      console.log(`  Target Lane: ${s.laneTarget}`);
+      console.log(`  Relevance: ${(s.relevanceScore * 100).toFixed(0)}%`);
+      console.log(`  Risk: ${s.riskScore > 0.6 ? 'HIGH' : s.riskScore > 0.3 ? 'MEDIUM' : 'LOW'}`);
+      console.log(`  Action: ${s.recommendedAction}`);
+      console.log(`  URL: ${s.artifact.url}`);
+      console.log('');
+    });
+  } else {
+    console.log('No findings above threshold.');
+  }
+  console.log('=== END BRIEFING REPORT ===');
+  console.log('');
   return filepath;
 }

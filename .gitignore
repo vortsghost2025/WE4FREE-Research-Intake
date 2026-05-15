@@ -2,6 +2,7 @@
 node_modules/
 dist/
 /output/
+# Do NOT ignore src/output/ — that is source code, not runtime output
 .env
 *.js.map
 *.d.ts.map

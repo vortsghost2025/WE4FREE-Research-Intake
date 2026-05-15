@@ -18,6 +18,23 @@ export function writeToQuarantine(packets: SuggestionPacket[], quarantineDir: st
   const lines = packets.map(p => JSON.stringify(p));
   fs.writeFileSync(filepath, lines.join('\n') + '\n');
 
-  console.log(`[output:quarantine] Wrote ${packets.length} packets to ${filepath}`);
+  console.log('');
+  console.log('=== QUARANTINE REPORT ===');
+  console.log(`Packets written: ${packets.length}`);
+  console.log(`File location: ${filepath}`);
+  if (packets.length > 0) {
+    console.log('');
+    packets.forEach((p, i) => {
+      console.log(`Packet ${i + 1}:`);
+      console.log(`  Target Lane: ${p.target_lane}`);
+      console.log(`  Confidence: ${(p.confidence * 100).toFixed(0)}%`);
+      console.log(`  Risk Level: ${p.risk}`);
+      console.log(`  Human Review Required: ${p.requires_human_review ? 'YES' : 'NO'}`);
+      console.log(`  Source: ${p.source_url}`);
+      console.log('');
+    });
+  }
+  console.log('=== END QUARANTINE REPORT ===');
+  console.log('');
   return filepath;
 }

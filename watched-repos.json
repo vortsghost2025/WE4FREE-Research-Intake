@@ -1,0 +1,34 @@
+{
+  "repos": [
+    {
+      "name": "Archivist-Agent",
+      "lane": "archivist",
+      "description": "Governance artifacts, provenance, journal, file chaos, evidence",
+      "keywords": ["provenance", "governance", "journal", "evidence", "archivist"]
+    },
+    {
+      "name": "self-organizing-library",
+      "lane": "library",
+      "description": "Memory graph, verification, docs, graph",
+      "keywords": ["memory", "verification", "graph", "docs", "library"]
+    },
+    {
+      "name": "SwarmMind",
+      "lane": "swarm",
+      "description": "Multi-agent coordination, optimization",
+      "keywords": ["multi-agent", "coordination", "optimization", "swarm"]
+    },
+    {
+      "name": "kernel-lane",
+      "lane": "kernel",
+      "description": "CUDA/GPU/headless performance",
+      "keywords": ["cuda", "gpu", "performance", "headless", "kernel"]
+    },
+    {
+      "name": "WE4FREE-Control-Plane",
+      "lane": "control-plane",
+      "description": "Orchestration, quarantine, autonomous healing",
+      "keywords": ["orchestration", "quarantine", "healing", "autonomous", "control"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "we4free-research-intake",
+  "version": "0.1.0",
+  "description": "Research Ingestion + Evidence Scoring + Autonomous Patch Suggestion lane",
+  "main": "dist/cli/research-intake.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli/research-intake.js",
+    "dev": "ts-node src/cli/research-intake.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.0.0"
+  }
+}

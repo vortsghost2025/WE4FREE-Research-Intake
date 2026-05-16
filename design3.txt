@@ -1,0 +1,311 @@
+# design3.txt — External Standards and Open-Source Integration Plan
+
+## Context
+
+design1 established the research intake pipeline (ingest → normalize → score → quarantine → compare → signed packet → lane inbox). design2 shifted the architecture from repo-centric to ontology-centric and added Phases A–D for graph, recommendations, and autonomous evolution.
+
+design3 validates those designs against real open-source tools and standards discovered during external research (May 2026). The findings confirm the architecture is sound but reveal concrete compatibility targets that should be adopted rather than reimplemented.
+
+## Key research conclusions
+
+1. **LangGraph JS** supports durable state machines with human-in-the-loop interrupts, persistence, checkpointing, and subgraph composition. Your lane architecture maps directly to LangGraph subgraphs; quarantine gates map to interrupts.
+2. **in-toto attestations** + **Witness** provide signed, verifiable, policy-enforced packet formats with OPA Rego policy verification. Your SuggestionPacket maps directly to in-toto predicate attestations.
+3. **Paper Scout** is a real arXiv/Semantic Scholar/HuggingFace ingestion pipeline with multi-signal weighted scoring (embedding similarity, keyword match, citation/author authority, community activity, recency). Its scoring formula is directly adoptable.
+4. **ClaimTrust** propagates trust scores across claim/evidence graphs using PageRank-style iterative propagation with supporting/contradicting edge weights — directly applicable to your trust-score.ts.
+5. **SparseCL** retrieves contradictions at scale using sparse sentence embeddings combined with cosine similarity, avoiding O(n²) pair-by-pair comparison — directly applicable to your contradiction-detect.ts.
+6. **iText2KG** incrementally extracts knowledge graphs from scientific papers using LLM-based entity/relation extraction and entity merging without post-processing — directly applicable to your canonicalize/ module.
+7. **AgentROA** (IETF draft) proposes a Border Gateway model for agent enforcement with ROA envelopes, per-hop attestations, and execution receipts. Not an implementation dependency but the strongest architecture reference for quarantine-before-action enforcement.
+
+## Phase 0 — Vitest safety coverage (already complete)
+
+- [x] Vitest installed and configured
+- [x] npm test scripts added
+- [x] human-review-gate.ts artifactIndex bug fixed
+- [x] 41 tests across human-review-gate, sign/verify, trust-score, rollback, auto-apply
+- [x] TypeScript strict mode, zero compilation errors
+
+## Phase 1 — in-toto/Witness compatibility spike
+
+### Goal
+Make SuggestionPacket compatible with in-toto attestation format so packets can be verified by any in-toto/Witness tooling.
+
+### Changes
+
+1. **Align packet schema with in-toto predicate attestation format**
+
+in-toto attestation v1.2 uses:
+```
+{
+  "predicateType": "...",
+  "subject": [{ "name": "...", "digest": { "sha256": "..." } }],
+  "predicate": { ... }
+}
+```
+
+Map SuggestionPacket fields:
+- `predicateType` → `"https://we4free.dev/attestations/research-suggestion/v1"`
+- `subject` → `[{ "name": packet.source_url, "digest": { "sha256": hash(packet.claim) } }]`
+- `predicate` → all remaining SuggestionPacket fields
+
+2. **Replace custom HMAC signing with Witness CLI integration**
+
+Current: `sign-packet.ts` uses manual `crypto.createHmac('sha256', key)`.
+Target: emit unsigned attestation JSON → pipe through `witness sign` → store signed attestation.
+
+Witness produces DSSE (Dead Simple Signing Envelope) format with:
+- `payload` (base64-encoded attestation)
+- `payloadType` (content type)
+- `signatures` array with `keyid` and `sig`
+
+This is a **spike** — implement as an optional output format alongside the existing HMAC signing. Both formats can coexist. The HMAC path stays as the default for standalone CLI use; the in-toto path activates when `--format in-toto` is passed.
+
+3. **Add Rego policy gate for quarantine**
+
+Witness supports OPA Rego policies. Define a `quarantine-policy.rego` that enforces:
+- `risk` must not be `high` without human signature
+- `graph_confidence.finalConfidence` must exceed minimum threshold
+- `source_url` must be present and non-empty
+
+This becomes the machine-enforceable version of `human-review-gate.ts`.
+
+### Files affected
+- `src/types.ts` — add in-toto attestation envelope type
+- `src/analyze/sign-packet.ts` — add in-toto output format
+- `src/analyze/verify-packet.ts` — add in-toto verification path
+- `src/output/quarantine.ts` — add Rego policy evaluation step
+- `src/cli/research-intake.ts` — add `--format` flag
+
+### Success criteria
+- `npm run build` passes
+- Existing HMAC tests still pass
+- A packet can be signed as in-toto attestation and verified back
+- Rego policy rejects an invalid packet
+
+### Non-goals
+- Running Witness as a subprocess in production
+- Replacing the existing HMAC signing
+- Full DSSE envelope parsing in TypeScript (use Witness CLI for verification)
+
+## Phase 2 — LangGraph workflow spike
+
+### Goal
+Replace the sequential `runIntake()` function with a durable LangGraph state machine that supports interrupts (quarantine pauses), checkpointing (crash recovery), and subgraph composition (each lane as a subgraph).
+
+### Architecture
+
+```
+research-intake-graph (supervisor)
+├── discover-subgraph (parallel ingest nodes)
+│   ├── fetch_arxiv
+│   ├── fetch_github
+│   ├── fetch_openalex
+│   └── fetch_web
+├── normalize-subgraph
+│   ├── canonicalize
+│   └── deduplicate
+├── score-subgraph
+│   ├── compute_similarity
+│   ├── compute_authority
+│   └── generate_suggestions
+├── quarantine-subgraph ← human-in-the-loop interrupt here
+│   ├── evaluate_policy
+│   └── [INTERRUPT if requires_human_review]
+├── sign-subgraph
+│   ├── sign_packet
+│   └── write_quarantine
+└── report-subgraph
+    ├── generate_briefing
+    └── [optional] auto_apply
+```
+
+### Key LangGraph concepts to use
+
+| Concept | Maps to |
+|---------|--------|
+| `StateGraph` with `State` schema | The overall pipeline state (artifacts, graph, settings) |
+| `NodeFunction` per pipeline step | Each intake phase as a node |
+| `Command.RESUME` for interrupts | Quarantine human review gate |
+| `Checkpoint` for persistence | Crash recovery across long research tasks |
+| `Subgraph` per lane | Each lane (archivist, library, swarm, kernel, research) |
+| `Supervisor` node | Research-lane orchestrator |
+
+### Migration strategy
+
+Not a rewrite. Wrap the existing `runIntake()` function as a LangGraph node. Each existing module (fetchArxiv, canonicalize, etc.) becomes a node. The graph controls orchestration and durability; the business logic stays where it is.
+
+### Files affected
+- New: `src/daemon/workflow.ts` — LangGraph state machine definition
+- New: `src/daemon/workflow.test.ts` — workflow tests
+- Modified: `src/cli/research-intake.ts` — add `--workflow` flag to use LangGraph mode
+- Dependency: `@langchain/langgraph` added to `package.json`
+
+### Success criteria
+- `npm run build` passes
+- A minimal graph with 3 sequential nodes runs an intake cycle
+- Checkpoint persists across node boundaries
+- Interrupt pauses the graph at the quarantine step
+
+### Non-goals
+- Replacing all CLI commands with LangGraph
+- Running LangGraph in production before Phase 1 is stable
+- Multi-lane subgraph composition (deferred to Phase 5)
+
+## Phase 3 — Scoring upgrade
+
+### Goal
+Adopt Paper Scout's multi-signal weighted scoring formula and ClaimTrust's trust propagation.
+
+### Paper Scout scoring model
+
+Paper Scout uses 5 signals with learned weights:
+```
+final_score = 0.45 * embedding_similarity
+            + 0.15 * keyword_match_score
+            + 0.20 * citation_author_authority
+            + 0.10 * community_activity
+            + 0.10 * recency
+```
+
+Your current `ScoredArtifact` has `relevanceScore`, `authorityScore`, `noveltyScore`, `riskScore` as separate fields without a composite formula. Adopt the weighted composite approach:
+
+1. Add `compositeScore` to `ScoredArtifact`
+2. Make weights configurable via env vars (`SCORE_EMBEDDING_WEIGHT`, `SCORE_KEYWORD_WEIGHT`, etc.)
+3. Add `communityActivity` and `recency` as scoring dimensions (currently absent)
+
+### ClaimTrust trust propagation
+
+Current `trust-score.ts` computes linear deltas (evidence adds, contradictions subtracts). ClaimTrust propagates trust across the graph iteratively:
+
+```
+trust(claim) = α * base_trust + (1-α) * Σ(weight(edge) * trust(neighbor))
+```
+
+Where:
+- supporting edges have positive weight
+- contradicting edges have negative weight
+- α is a damping factor (0.15 typical)
+- Iterate until convergence (max 20 iterations)
+
+This should replace the current linear scoring in `updateTrustScores()`.
+
+### Files affected
+- `src/analyze/similarity.ts` — add composite scoring with configurable weights
+- `src/analyze/trust-score.ts` — replace linear scoring with PageRank-style propagation
+- `src/analyze/confidence-scorer.ts` — integrate composite score into graph confidence
+- `src/types.ts` — add `compositeScore`, `communityActivity`, `recency` fields
+- `.env.example` — add SCORE_* weight env vars
+
+### Success criteria
+- Composite score matches Paper Scout formula within configurable tolerance
+- Trust scores propagate across supporting edges (increase) and contradicting edges (decrease)
+- Existing trust-score tests pass (or are updated for new behavior)
+
+## Phase 4 — Ontology repo extraction
+
+### Goal
+Extract canonical type definitions from `src/types.ts` into a standalone `WE4FREE-Ontology` repository following UOR Framework's pattern: `spec/` → codegen → `foundation/`.
+
+### Extraction scope
+
+Move from `src/types.ts` into `WE4FREE-Ontology/spec/`:
+
+| Current location | Target |
+|----------------|--------|
+| `ResearchArtifact` | `spec/artifacts/research-artifact.schema.ts` |
+| `Claim`, `Evidence` | `spec/graph/claim.schema.ts`, `spec/graph/evidence.schema.ts` |
+| `AuthorityLink`, `ContradictionEdge` | `spec/graph/authority.schema.ts`, `spec/graph/contradiction.schema.ts` |
+| `SuggestionPacket`, `SignedSuggestionPacket` | `spec/packets/suggestion-packet.schema.ts` |
+| `GraphAwareScore`, `TrustScoreEntry` | `spec/scoring/` |
+| `LaneTarget`, `RepoManifest` | `spec/lanes/` |
+
+### Export formats
+
+The ontology repo should emit:
+- TypeScript types (importable by all 8 projects)
+- JSON Schema (for validation in non-TS contexts)
+- Markdown reference docs (generated from spec)
+
+### Integration
+
+This project (`WE4FREE-Research-Intake`) imports from `WE4FREE-Ontology` instead of defining its own types. The import path changes from `../types` to `@we4free/ontology`.
+
+### Success criteria
+- `WE4FREE-Ontology` repo exists with `spec/` directory
+- `npm run build` in this project succeeds using the external package
+- All existing tests pass with imported types
+- At least JSON Schema export is generated
+
+## Phase 5 — Graph contradiction and trust propagation
+
+### Goal
+Upgrade contradiction detection from heuristic pair comparison to SparseCL-style sparse embedding retrieval, and upgrade trust propagation to ClaimTrust-style iterative graph algorithm.
+
+### SparseCL contradiction retrieval
+
+Current `contradiction-detect.ts` compares claims pairwise (O(n²)). SparseCL retrieves contradictions via:
+
+1. Encode each claim as a sparse sentence embedding (bag-of-concepts via lexical matching + IDF weighting)
+2. Compute similarity as `cosine(embedding_a, embedding_b) * sparsity_penalty(hoyer(a), hoyer(b))`
+3. Return top-K most contradictory pairs per claim (avoiding O(n²))
+
+The sparsity penalty preserves contradictory nuance: two claims with high cosine similarity but different sparse patterns are more likely to be contradictory than two claims with uniformly dense overlap.
+
+### ClaimTrust trust propagation (full)
+
+Build on Phase 3's work:
+
+1. Maintain a weighted adjacency matrix of claims (supporting = +w, contradicting = -w)
+2. Run iterative PageRank-style propagation until convergence (Δ < 0.001 or max 20 iterations)
+3. Update trust scores each cycle based on neighbor trust × edge weight
+4. Persist converged scores as `TrustScoreEntry` with convergence metadata
+
+### Integration with SparseCL
+
+- SparseCL identifies candidate contradiction pairs
+- ClaimTrust scores the impact of those contradictions on trust
+- Together they form a closed loop: contradictions affect trust, trust affects contradiction weight
+
+### Files affected
+- `src/analyze/contradiction-detect.ts` — add sparse embedding retrieval
+- `src/analyze/trust-score.ts` — ensure iterative algorithm is used
+- `src/graph/graph-queries.ts` — add contradiction retrieval by embedding
+- New: `src/analyze/sparse-embed.ts` — sparse embedding utilities
+
+### Success criteria
+- Contradiction detection runs in sub-O(n²) time for n > 100 claims
+- Trust scores converge within 20 iterations
+- Existing tests adapted for new algorithms
+
+## Updated roadmap
+
+```
+Phase 0 — Vitest safety coverage + human-review-gate fix          [DONE]
+Phase 1 — in-toto/Witness compatibility spike                     [NEXT]
+Phase 2 — LangGraph workflow spike                                [AFTER P1]
+Phase 3 — Scoring upgrade (Paper Scout + ClaimTrust)              [AFTER P2]
+Phase 4 — WE4FREE-Ontology repo extraction                        [AFTER P3]
+Phase 5 — Graph contradiction (SparseCL) + trust propagation      [AFTER P4]
+```
+
+Each phase produces a working, testable, shippable increment. No phase depends on a later phase to provide value. The pipeline continues working after each phase; nothing is blocked waiting for a future phase.
+
+## Key constraints (from design1 and design2, reinforced)
+
+1. **Quarantine before action** — no artifact reaches comparison or suggestion without quarantine scoring. in-toto/Witness attestations make this cryptographically enforceable, not just a code convention.
+2. **Evidence before assertion** — every SuggestionPacket must cite `source_url` and `why_it_matters`. ClaimTrust makes this quantitatively measurable.
+3. **Human review gate** — if `requires_human_review === true`, the packet must not auto-advance. LangGraph interrupts make this a platform primitive.
+4. **No auto-patching in research-lane** — research-lane discovers, validates, compares, contradicts, and recommends. It does not execute. AgentROA's Border Gateway model provides the future architecture reference for enforcing this externally.
+5. **Self-modification threshold warning** — do not weaken governance controls to accelerate feature delivery. Adding in-toto/Witness strengthens governance; switching to LangGraph does not weaken it.
+
+## References
+
+- LangGraph JS: https://github.com/langchain-ai/langgraphjs
+- in-toto attestations: https://github.com/in-toto/attestation
+- Witness: https://github.com/in-toto/witness
+- Paper Scout: https://github.com/jonradoff/paper-scout
+- ClaimTrust (arXiv 2503.10702): https://arxiv.org/abs/2503.10702
+- SparseCL (arXiv 2406.10746): https://arxiv.org/abs/2406.10746
+- iText2KG (arXiv 2409.03284): https://arxiv.org/abs/2409.03284
+- AgentROA IETF Draft: https://datatracker.ietf.org/doc/draft-nivalto-agentroa
+- ZLAR (governed agent receipts): https://github.com/ZLAR-AI/ZLAR
+- UOR Framework (ontology-as-code): https://github.com/UOR-Foundation/UOR-Framework

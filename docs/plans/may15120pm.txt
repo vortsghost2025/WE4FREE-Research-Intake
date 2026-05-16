@@ -1,0 +1,2 @@
+Implementation Plan – Deploy WE4FREE Control Plane on Headless Ubuntu
+(See previous detailed plan for full steps and sections.)

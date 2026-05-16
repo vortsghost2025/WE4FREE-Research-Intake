@@ -6,3 +6,6 @@ dist/
 .env
 *.js.map
 *.d.ts.map
+tsconfig.tsbuildinfo
+firebase-debug.log
+nul

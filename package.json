@@ -1,9 +1,10 @@
 {
   "name": "we4free-research-intake",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Research Ingestion + Evidence Scoring + Autonomous Patch Suggestion lane",
   "main": "dist/cli/research-intake.js",
   "scripts": {
+    "prebuild": "node -e \"const fs=require('fs');try{fs.rmSync('dist',{recursive:true})}catch{}\"",
     "build": "tsc",
     "start": "node dist/cli/research-intake.js",
     "dev": "ts-node src/cli/research-intake.ts"

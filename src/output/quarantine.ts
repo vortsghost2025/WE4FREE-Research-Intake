@@ -1,12 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { SuggestionPacket } from '../types';
+import { SignedSuggestionPacket } from '../types';
 
 /**
- * Write suggestion packets to quarantine JSONL file.
+ * Write signed suggestion packets to quarantine JSONL file.
  * Quarantine ensures no direct autonomous patching without review.
  */
-export function writeToQuarantine(packets: SuggestionPacket[], quarantineDir: string): string {
+export function writeToQuarantine(packets: SignedSuggestionPacket[], quarantineDir: string): string {
   if (!fs.existsSync(quarantineDir)) {
     fs.mkdirSync(quarantineDir, { recursive: true });
   }
@@ -26,11 +26,13 @@ export function writeToQuarantine(packets: SuggestionPacket[], quarantineDir: st
     console.log('');
     packets.forEach((p, i) => {
       console.log(`Packet ${i + 1}:`);
-      console.log(`  Target Lane: ${p.target_lane}`);
-      console.log(`  Confidence: ${(p.confidence * 100).toFixed(0)}%`);
-      console.log(`  Risk Level: ${p.risk}`);
-      console.log(`  Human Review Required: ${p.requires_human_review ? 'YES' : 'NO'}`);
-      console.log(`  Source: ${p.source_url}`);
+      console.log(` Target Lane: ${p.target_lane}`);
+      console.log(` Action: ${p.suggestion_action}`);
+      console.log(` Confidence: ${(p.confidence * 100).toFixed(0)}% (graph: ${(p.graph_confidence.finalConfidence * 100).toFixed(0)}%)`);
+      console.log(` Risk Level: ${p.risk}`);
+      console.log(` Human Review Required: ${p.requires_human_review ? 'YES' : 'NO'}`);
+      console.log(` Signing Key: ${p.signing_key_id}`);
+      console.log(` Source: ${p.source_url}`);
       console.log('');
     });
   }

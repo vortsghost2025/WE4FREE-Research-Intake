@@ -25,7 +25,7 @@ export function computeSimilarity(
       artifact,
       relevanceScore: bestScore,
       authorityScore: computeAuthority(artifact),
-      noveltyScore: 0.5, // TODO: Implement novelty detection
+      noveltyScore: computeNovelty(artifact),
       riskScore: computeRisk(artifact),
       implementationCost: 'medium',
       laneTarget: bestLane as ScoredArtifact['laneTarget'],
@@ -48,9 +48,28 @@ function computeAuthority(artifact: ResearchArtifact): number {
 }
 
 function computeRisk(artifact: ResearchArtifact): number {
-  // Heuristic: preprints and unknown licenses are higher risk
   let risk = 0.3;
   if (artifact.evidenceLevel === 'preprint' || artifact.evidenceLevel === 'experimental') risk += 0.3;
   if (!artifact.license || artifact.license === '') risk += 0.2;
   return Math.min(risk, 1);
+}
+
+function computeNovelty(artifact: ResearchArtifact): number {
+  const citationPenalty = Math.min(artifact.citations / 200, 0.5);
+  const recencyBonus = computeRecencyBonus(artifact.discoveredAt);
+  const novelty = 1.0 - citationPenalty + recencyBonus;
+  return Math.min(Math.max(novelty, 0), 1);
+}
+
+function computeRecencyBonus(discoveredAt: string): number {
+  try {
+    const ageMs = Date.now() - new Date(discoveredAt).getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    if (ageDays < 30) return 0.3;
+    if (ageDays < 90) return 0.2;
+    if (ageDays < 365) return 0.1;
+    return 0;
+  } catch {
+    return 0;
+  }
 }

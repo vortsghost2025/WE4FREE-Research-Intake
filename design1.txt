@@ -1,0 +1,182 @@
+You’re not describing “a scraper.” You’re describing a Research Ingestion + Evidence Scoring + Autonomous Patch Suggestion lane.
+
+I checked the public repos: Archivist-Agent is already framed around governance artifacts, self-organizing-library is acting as memory/verification, and kernel-lane is explicitly isolated for GPU/performance work. That means the new system should not replace the 4 lanes; it should become an Evidence/Research Feed that writes signed, quarantined packets into them.
+
+Build target
+
+Project name: WE4FREE-Research-Intake
+
+Purpose:
+
+Continuously discover papers, repos, datasets, standards, governance docs, and technical references; compare them against your current repos/docs; then emit safe, ranked, source-backed improvement packets into the headless autonomous system.
+
+Architecture
+WE4FREE-Research-Intake/
+├─ ingest/
+│  ├─ arxiv.ts
+│  ├─ github.ts
+│  ├─ osf.ts
+│  ├─ semantic-scholar.ts
+│  └─ web-search.ts
+├─ normalize/
+│  ├─ paper-parser.ts
+│  ├─ repo-parser.ts
+│  └─ citation-extractor.ts
+├─ analyze/
+│  ├─ repo-map.ts
+│  ├─ similarity.ts
+│  ├─ contradiction-detect.ts
+│  ├─ authority-score.ts
+│  └─ upgrade-suggestions.ts
+├─ output/
+│  ├─ packets/
+│  ├─ quarantine/
+│  ├─ signed-reports/
+│  └─ lane-inbox/
+├─ cli/
+│  └─ research-intake.ts
+└─ daemon/
+   └─ scheduler.ts
+Core flow
+
+1. Ingest
+
+Pull from:
+
+arXiv
+GitHub
+OSF
+Semantic Scholar / OpenAlex
+Papers with Code
+Hugging Face
+standards/governance sources
+your own repos
+
+2. Normalize
+
+Convert everything into one canonical object:
+
+ResearchArtifact {
+  id
+  source
+  title
+  authors
+  url
+  abstract
+  claims
+  codeLinks
+  citations
+  topics
+  evidenceLevel
+  license
+  discoveredAt
+}
+
+3. Compare against your work
+
+Map artifact claims to your repos:
+
+Archivist-Agent        → provenance, journal, file chaos, evidence
+self-organizing-library → memory graph, verification, docs, graph
+SwarmMind              → multi-agent coordination, optimization
+kernel-lane            → CUDA/GPU/headless performance
+WE4FREE-Control-Plane  → orchestration, quarantine, autonomous healing
+
+4. Score
+
+Each item gets:
+
+relevance_score
+authority_score
+novelty_score
+risk_score
+implementation_cost
+lane_target
+recommended_action
+
+5. Output safely
+
+No direct autonomous patching at first.
+
+Write packets like:
+
+{
+  "packet_type": "research_suggestion",
+  "target_lane": "kernel",
+  "confidence": 0.82,
+  "source_url": "...",
+  "claim": "...",
+  "why_it_matters": "...",
+  "suggested_change": "...",
+  "risk": "medium",
+  "requires_human_review": true
+}
+Important design decision
+
+Do not let internet-scraped data directly modify your autonomous system.
+
+Use this pipeline:
+
+DISCOVER
+→ NORMALIZE
+→ SCORE
+→ QUARANTINE
+→ COMPARE
+→ HUMAN/AGENT REVIEW
+→ SIGNED PACKET
+→ LANE INBOX
+→ AUTONOMOUS SYSTEM MAY ACT
+
+That fits your current governance model much better than “scrape and auto-upgrade.”
+
+Pseudocode plan
+
+Phase 1 — Minimal working daemon
+
+Start daemon
+Load watched repo manifests
+Fetch latest arXiv/GitHub/OSF items for configured topics
+Normalize all results into ResearchArtifact[]
+Embed artifact text
+Embed local repo docs
+Compute similarity
+Rank matches
+Write top findings to quarantine JSONL
+Generate plain-text briefing
+Exit safely
+
+Phase 2 — Lane integration
+
+For each ranked finding:
+  detect target lane
+  create signed suggestion packet
+  write packet to lane inbox
+  notify control-plane
+  wait for lane acceptance/rejection
+  store outcome in memory graph
+
+Phase 3 — Autonomous upgrade loop
+
+If packet is accepted:
+  generate implementation plan
+  create branch
+  apply patch
+  run tests
+  produce evidence report
+  require pass threshold
+  commit only if clean
+My recommendation
+
+Build it as a Node/TypeScript CLI daemon first, not a web app.
+
+Your visual graph is useful, but the headless Ubuntu system needs:
+
+JSONL packets
+plain text briefings
+git commits
+systemd timers
+signed evidence reports
+
+The UI can read those later.
+
+Ready for confirmation: I’d start with Phase 1 and implement the full repo scaffold + arXiv/GitHub/OSF ingestion + local repo comparison + quarantine packet output.

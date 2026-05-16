@@ -15,19 +15,15 @@ export function requiresHumanReview(
 }
 
 function hasLowEvidence(
-  packet: SignedSuggestionPacket,
+  _packet: SignedSuggestionPacket,
   graph: CanonicalGraph
 ): boolean {
-  const sourceUrl = packet.source_url;
-  let totalEvidence = 0;
+  if (graph.claims.size === 0) return false;
   for (const [, claim] of graph.claims) {
-    const artifact = [...graph.artifactIndex.entries()]
-      .find(([, ids]) => ids.includes(claim.id));
-    if (artifact && graph.artifactIndex.has(sourceUrl)) {
-      totalEvidence += findEvidenceForClaim(graph, claim.id).length;
-    }
+    const evidence = findEvidenceForClaim(graph, claim.id);
+    if (evidence.length > 0) return false;
   }
-  return totalEvidence === 0 && graph.claims.size > 0;
+  return true;
 }
 
 function hasContradictedClaimsInGraph(

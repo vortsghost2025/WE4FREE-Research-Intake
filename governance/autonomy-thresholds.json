@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "Thresholds governing autonomous mutation. Mirrors auto-apply.ts isEligible() logic.",
+  "auto_apply": {
+    "enabled": true,
+    "min_confidence": 0.8,
+    "allowed_actions": ["adopt_evidence"],
+    "allowed_risk_levels": ["low"],
+    "block_human_review_flagged": true,
+    "max_packets_per_cycle": 10
+  },
+  "rollback": {
+    "enabled": true,
+    "allowed_states": ["auto_applied", "human_approved"],
+    "auto_rollback_on_failure": false,
+    "max_auto_rollbacks_per_hour": 3
+  },
+  "self_heal": {
+    "enabled": true,
+    "degradation_threshold_days": 7,
+    "confidence_drop_threshold": 0.2,
+    "max_degraded_before_alert": 5
+  },
+  "feedback": {
+    "enabled": true,
+    "confidence_adjustment_cap": 0.1,
+    "min_feedback_before_trust_update": 3
+  },
+  "limits": {
+    "max_autonomous_actions_per_day": 50,
+    "require_human_after_consecutive_failures": 3,
+    "cooldown_minutes_after_rollback": 30
+  }
+}

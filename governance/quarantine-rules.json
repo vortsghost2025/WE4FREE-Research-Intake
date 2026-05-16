@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "description": "Machine-readable quarantine thresholds. Mirrors human-review-gate.ts logic.",
+  "rules": [
+    {
+      "id": "q001",
+      "field": "risk",
+      "operator": "equals",
+      "value": "high",
+      "action": "require_human_review",
+      "reason": "High-risk packets must always be reviewed by a human."
+    },
+    {
+      "id": "q002",
+      "field": "requires_human_review",
+      "operator": "equals",
+      "value": true,
+      "action": "require_human_review",
+      "reason": "Packet explicitly flagged for human review."
+    },
+    {
+      "id": "q003",
+      "field": "suggestion_action",
+      "operator": "equals",
+      "value": "investigate_contradiction",
+      "action": "require_human_review",
+      "reason": "Contradiction investigations require human judgment."
+    },
+    {
+      "id": "q004",
+      "field": "graph_confidence.finalConfidence",
+      "operator": "less_than",
+      "value": 0.3,
+      "action": "reject",
+      "reason": "Confidence below minimum threshold. Packet is rejected without review."
+    },
+    {
+      "id": "q005",
+      "field": "source_url",
+      "operator": "empty",
+      "value": true,
+      "action": "reject",
+      "reason": "Packets without a source URL cannot be attributed."
+    },
+    {
+      "id": "q006",
+      "field": "graph_confidence.finalConfidence",
+      "operator": "between",
+      "value": [0.3, 0.8],
+      "action": "flag_for_review",
+      "reason": "Moderate confidence packets are flagged for optional review."
+    }
+  ],
+  "default_action": "quarantine",
+  "review_override": {
+    "required_signature": "control-plane",
+    "max_override_duration_hours": 24
+  }
+}

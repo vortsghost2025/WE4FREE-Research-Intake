@@ -4,7 +4,7 @@ import { Claim, ContradictionEdge, ContradictionEdge as CE } from '../types';
 // ── Existing rule-based detection helpers (preserved) ──────────────────────
 
 const ANTAGONIST_PAIRS: [RegExp, RegExp, string][] = [
-  [/improves?/i, /degrades?|worsens?|deteriorates?/i, 'opposing improvement direction'],
+  [/improves?/i, /degrades?|worsens?|deteriorates?|reduces?/i, 'opposing improvement direction'],
   [/increases?|raises?|elevates?/i, /decreases?|reduces?|lowers?|diminishes?/i, 'opposing magnitude direction'],
   [/outperforms?/i, /underperforms?|inferior|worse than/i, 'opposing performance comparison'],
   [/faster|speeds? up|accelerat/i, /slower|slows? down|decelerat/i, 'opposing speed direction'],

@@ -37,6 +37,7 @@ function makePacket(overrides: Partial<SignedSuggestionPacket> = {}): SignedSugg
     },
     signature: 'sig123',
     signing_key_id: 'test',
+    packet_format: 'hmac',
     ...overrides,
   };
 }

@@ -20,7 +20,8 @@ import { requiresHumanReview } from '../analyze/human-review-gate';
 import { writeToQuarantine } from '../output/quarantine';
 import { generateBriefing } from '../output/briefing';
 import { startDaemon } from '../daemon/scheduler';
-import { ResearchArtifact, SignedSuggestionPacket, FeedbackOutcome } from '../types';
+import { compileIntakeWorkflow, IntakeWorkflowOptions } from '../daemon/workflow';
+import { ResearchArtifact, SignedSuggestionPacket, FeedbackOutcome, PacketFormat } from '../types';
 import { loadSeenIds, saveSeenIds, deduplicateArtifacts } from '../ingest/dedup';
 import { canonicalize } from '../canonicalize/canonicalizer';
 import { GraphStore } from '../graph/graph-store';
@@ -47,8 +48,12 @@ const DEFAULT_TOPICS = [
 const DEFAULT_GRAPH_DIR = process.env.GRAPH_DIR || './output/graph';
 const DEFAULT_AUTONOMOUS_DIR = process.env.AUTONOMOUS_DIR || './output/autonomous';
 
-async function runIntake(topics: string[], opts: { quarantineDir: string; briefingDir: string; reposPath: string; graphDir: string; autonomousDir: string; autoApplyFlag: boolean }) {
-  console.log('=== WE4FREE Research Intake ===');
+async function runIntake(topics: string[], opts: { quarantineDir: string; briefingDir: string; reposPath: string; graphDir: string; autonomousDir: string; autoApplyFlag: boolean; format?: string; workflow?: boolean }) {
+  if (opts.workflow) {
+    await runWorkflow(topics, { topics, reposPath: opts.reposPath, format: opts.format });
+    return;
+  }
+  console.log('=== WE4FREE Research Intake (sequential) ===');
   console.log(`Topics: ${topics.join(', ')}`);
   console.log(`Quarantine dir: ${opts.quarantineDir}`);
   console.log(`Briefing dir: ${opts.briefingDir}`);
@@ -103,8 +108,9 @@ async function runIntake(topics: string[], opts: { quarantineDir: string; briefi
   const unsignedSuggestions = generateSuggestions(scored, graph, manifests);
   console.log(`[phase:analyze] Generated ${unsignedSuggestions.length} suggestion packets`);
 
+  const fixedFormat = opts.format === 'hmac' || opts.format === 'in-toto' ? (opts.format as 'hmac' | 'in-toto') : undefined;
   const signedSuggestions: SignedSuggestionPacket[] = unsignedSuggestions.map(p => {
-    const signed = signPacket(p);
+    const signed = signPacket(p, undefined, fixedFormat);
     const needsReview = requiresHumanReview(signed, graph);
     return { ...signed, requires_human_review: needsReview };
   });
@@ -127,6 +133,30 @@ async function runIntake(topics: string[], opts: { quarantineDir: string; briefi
   console.log('=== Intake run complete ===');
 }
 
+async function runWorkflow(topics: string[], opts: { topics: string[]; reposPath: string; format?: string }) {
+  console.log('=== WE4FREE Research Intake (LangGraph workflow mode) ===');
+  const workflow = compileIntakeWorkflow();
+
+  const fixedFormat = opts.format === 'hmac' || opts.format === 'in-toto' ? (opts.format as 'hmac' | 'in-toto') : undefined;
+
+  const initial = {
+    topics,
+    reposPath: opts.reposPath,
+    signingFormat: fixedFormat || 'hmac',
+    artifacts: [],
+    manifests: [],
+    scoredSuggestions: [],
+    unsignedSuggestions: [],
+    signedSuggestions: [],
+    checkedSuggestions: [],
+  };
+
+  console.log('[workflow] Invoking...');
+  const result = await workflow.invoke(initial);
+  console.log('[workflow] Completed.');
+  console.log(`[workflow] Total suggestions: ${result.checkedSuggestions?.length || 0}`);
+}
+
 const program = new Command();
 
 program
@@ -143,6 +173,8 @@ program
   .option('-r, --repos-path <path>', 'Path to watched repos manifest', process.env.WATCHED_REPOS_PATH || './watched-repos.json')
   .option('-g, --graph-dir <path>', 'Graph data directory', DEFAULT_GRAPH_DIR)
   .option('--auto-apply', 'Auto-apply eligible suggestions after intake', false)
+  .option('--format <format>', 'Packet signing format: hmac | in-toto', 'hmac')
+  .option('--workflow', 'Use LangGraph workflow mode instead of sequential run', false)
   .option('-a, --autonomous-dir <path>', 'Autonomous state directory', DEFAULT_AUTONOMOUS_DIR)
   .action(async (opts) => {
     const topics = opts.topics.split(',').map((t: string) => t.trim());
@@ -159,6 +191,7 @@ program
   .option('-r, --repos-path <path>', 'Path to watched repos manifest', process.env.WATCHED_REPOS_PATH || './watched-repos.json')
   .option('-g, --graph-dir <path>', 'Graph data directory', DEFAULT_GRAPH_DIR)
   .option('-a, --autonomous-dir <path>', 'Autonomous state directory', DEFAULT_AUTONOMOUS_DIR)
+  .option('--format <format>', 'Packet signing format: hmac | in-toto', 'hmac')
   .action(async (opts) => {
     const topics = opts.topics.split(',').map((t: string) => t.trim());
     const interval = parseInt(opts.interval, 10);

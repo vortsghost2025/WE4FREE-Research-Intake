@@ -18,10 +18,16 @@ export interface ResearchArtifact {
 // Scoring output for a compared artifact
 export interface ScoredArtifact {
   artifact: ResearchArtifact;
-  relevanceScore: number;    // 0-1
+  relevanceScore: number;    // 0-1 keyword overlap (backward-compat)
   authorityScore: number;    // 0-1
   noveltyScore: number;      // 0-1
   riskScore: number;         // 0-1
+  /** Paper Scout composite — replaces raw relevanceScore for confidence gates */
+  compositeScore: number;    // 0-1
+  /** Community interest proxy: citation velocity × topic breadth */
+  communityActivity: number; // 0-1
+  /** Absolute recency position signal (0.05→1.0, distinct from noveltyScore) */
+  recency: number;           // 0-1
   implementationCost: 'low' | 'medium' | 'high';
   laneTarget: LaneTarget;
   recommendedAction: 'review' | 'adopt' | 'monitor' | 'discard';
@@ -39,6 +45,12 @@ export interface SuggestionPacket {
   risk: 'low' | 'medium' | 'high';
   requires_human_review: boolean;
   created_at: string; // ISO timestamp
+}
+
+export interface PolicyResult {
+  passing: boolean;
+  deny_reasons: string[];
+  flag_reasons: string[];
 }
 
 // Local repo manifest structure
@@ -118,12 +130,26 @@ export interface GraphAwareScore {
   finalConfidence: number;
 }
 
-export interface SignedSuggestionPacket extends SuggestionPacket {
+// ─── Phase D: packet signing (WO-01) ───
+
+export type PacketFormat = 'hmac' | 'in-toto';
+
+export interface IntotoAttestation {
+  _type: string;
+  subject: Array<{ name: string; digest: { sha256: string } }>;
+  predicateType: string;
+  predicate: Record<string, any>;
+}
+
+export interface ConfidentPacketLayer {
   suggestion_action: SuggestionAction;
   graph_confidence: GraphAwareScore;
   signature: string;
   signing_key_id: string;
+  packet_format: PacketFormat;
 }
+
+export interface SignedSuggestionPacket extends SuggestionPacket, ConfidentPacketLayer {}
 
 // ─── Phase D: Autonomous Evolution ───
 

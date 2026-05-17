@@ -26,6 +26,7 @@ function makePacket(overrides: Partial<SignedSuggestionPacket> = {}): SignedSugg
     },
     signature: '',
     signing_key_id: '',
+    packet_format: 'hmac',
     ...overrides,
   };
 }
@@ -81,7 +82,7 @@ describe('verifyPacket', () => {
     const packet = makePacket();
     const signed = signPacket(packet, key);
 
-    const tampered: SignedSuggestionPacket = { ...signed, claim: 'maliciously altered claim' };
+    const tampered: SignedSuggestionPacket = { ...signed, claim: 'maliciously altered claim', packet_format: 'hmac' };
     const result = verifyPacket(tampered, key);
     expect(result).toBe(false);
   });

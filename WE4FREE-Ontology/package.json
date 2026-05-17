@@ -1,0 +1,16 @@
+{
+  "name": "@we4free/ontology",
+  "version": "0.1.0",
+  "description": "Canonical type definitions and JSON Schema exports for WE4FREE ecosystem",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "generate": "ts-node scripts/generate-json-schema.ts",
+    "build": "tsc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.2"
+  }
+}

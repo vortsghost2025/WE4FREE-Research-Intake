@@ -45,6 +45,7 @@ function buildPacket(
     graph_confidence: graphConfidence,
     signature: '',
     signing_key_id: '',
+    packet_format: 'hmac',
   };
 }
 

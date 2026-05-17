@@ -1,20 +1,42 @@
 import { CanonicalGraph, ScoredArtifact, GraphAwareScore } from '../types';
 
+/**
+ * scoreConfidence — graph-aware confidence scoring (confidence-scorer.ts)
+ *
+ * WO-04 scoring upgrade: baseConfidence now anchors on compositeScore
+ * (Paper Scout 5-signal) instead of the old relevance × authority product.
+ *
+ * All remaining signal modifiers are graph-derived (they do not duplicate the
+ * compositeScore dimensions, which are artefact-intrinsic):
+ *   evidenceBonus      — claims backed by evidence in the canonical graph
+ *   contradictionPenalty — max contradiction strength touching any claim of this artefact
+ *   authorityBonus     — number of authority links touching the artefact
+ *   veracityModifier   — average veracity of claims (supported +, contradicted -, disputed -)
+ *   communityBoost     — communityActivity × recency product (degeneracy guard when > 0.5)
+ */
 export function scoreConfidence(
   scored: ScoredArtifact,
   graph: CanonicalGraph
 ): GraphAwareScore {
-  const baseConfidence = scored.relevanceScore * scored.authorityScore;
+  // WO-04: baseConfidence replaces old relevanceScore × authorityScore
+  const baseConfidence = (scored.compositeScore || scored.relevanceScore) * scored.authorityScore;
 
   const artifactClaims = getArtifactClaims(scored.artifact.id, graph);
   const evidenceBonus = computeEvidenceBonus(artifactClaims, graph);
   const contradictionPenalty = computeContradictionPenalty(artifactClaims, graph);
   const authorityBonus = computeAuthorityBonus(scored.artifact.id, graph);
   const veracityModifier = computeVeracityModifier(artifactClaims, graph);
+  // Community activity cross-bred with recency: healthy signals amplify baseConfidence
+  const communityBoost = (scored.communityActivity ?? 0) * (scored.recency ?? 0);
 
   const finalConfidence = Math.min(
     Math.max(
-      baseConfidence + evidenceBonus - contradictionPenalty + authorityBonus + veracityModifier,
+      baseConfidence
+        + evidenceBonus
+        - contradictionPenalty
+        + authorityBonus
+        + veracityModifier
+        + communityBoost,
       0
     ),
     1
@@ -84,9 +106,9 @@ function computeVeracityModifier(claimIds: string[], graph: CanonicalGraph): num
     const claim = graph.claims.get(claimId);
     if (!claim) continue;
     switch (claim.veracity) {
-      case 'supported': modifier += 0.05; break;
+      case 'supported':  modifier += 0.05; break;
       case 'contradicted': modifier -= 0.1; break;
-      case 'disputed': modifier -= 0.05; break;
+      case 'disputed':   modifier -= 0.05; break;
       case 'unverified': break;
     }
   }

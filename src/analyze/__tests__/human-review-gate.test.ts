@@ -25,6 +25,7 @@ function makePacket(overrides: Partial<SignedSuggestionPacket> = {}): SignedSugg
     },
     signature: '',
     signing_key_id: '',
+    packet_format: 'hmac',
     ...overrides,
   };
 }

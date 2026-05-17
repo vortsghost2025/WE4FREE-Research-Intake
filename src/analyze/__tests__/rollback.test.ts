@@ -35,6 +35,7 @@ function makeAppliedPacket(overrides: Partial<AppliedPacket> = {}): AppliedPacke
       },
       signature: 'abc123',
       signing_key_id: 'test',
+      packet_format: 'hmac',
     },
     applied_at: new Date().toISOString(),
     applied_by: 'auto',

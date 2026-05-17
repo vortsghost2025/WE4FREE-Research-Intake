@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { signPacket } from '../sign-packet';
 import { verifyPacket } from '../verify-packet';
 import { SignedSuggestionPacket } from '../../types';
@@ -101,6 +101,86 @@ describe('verifyPacket', () => {
     const result = verifyPacket(noSig, key);
     expect(result).toBe(false);
   });
+});
+
+// ── Audit 1: in-toto envelope generate + verify ────────────────────────────
+describe('in-toto envelope', () => {
+  it('signs as in-toto and sets packet_format', () => {
+    const key = 'intoto-sig-key';
+    const packet = makePacket();
+    const signed = signPacket(packet, key, 'in-toto');
+
+    expect(signed.packet_format).toBe('in-toto');
+    expect(signed.signature).toBeTruthy();
+    expect(signed.signing_key_id).toBe('provided-key');
+  });
+
+  it('verifies a valid in-toto packet', () => {
+    const key = 'intoto-verify-key';
+    const packet = makePacket({ source_url: 'https://research.example.org/paper-42' });
+    const signed = signPacket(packet, key, 'in-toto');
+    expect(verifyPacket(signed, key)).toBe(true);
+  });
+
+  it('in-toto verify fails when signature is tampered', () => {
+    const key = 'intoto-tamper-key';
+    const signed = signPacket(makePacket(), key, 'in-toto');
+    const tampered: SignedSuggestionPacket = { ...signed, claim: 'tampered claim', packet_format: 'in-toto' };
+    expect(verifyPacket(tampered, key)).toBe(false);
+  });
+
+  it('in-toto verify fails when key is wrong', () => {
+    const signed = signPacket(makePacket(), 'correct-key', 'in-toto');
+    expect(verifyPacket(signed, 'wrong-key')).toBe(false);
+  });
+
+  it('in-toto verify fails when verification_material.hmac_signature is missing', () => {
+    const key = 'intoto-no-vm-key';
+    const packet = makePacket();
+    // Manually strip the verification_material — simulates a malformed packet
+    const malformed: SignedSuggestionPacket = {
+      ...makePacket(),
+      packet_format: 'in-toto',
+      verification_material: {},
+    };
+    expect(verifyPacket(malformed, key)).toBe(false);
+  });
+});
+
+// ── Audit 2: malformed in-toto packet fails verification ───────────────────
+describe('malformed in-toto packet', () => {
+  it('returns false for a packet with packet_format=in-toto but no verification_material field', () => {
+    const key = 'intoto-malformed-key';
+    const signed: SignedSuggestionPacket = {
+      ...makePacket(),
+      packet_format: 'in-toto',
+      signature: 'deadbeef',
+      signing_key_id: 'fake',
+    };
+    expect(verifyPacket(signed, key)).toBe(false);
+  });
+
+  it('returns false for in-toto packet with empty hmac_signature', () => {
+    const key = 'intoto-empty-vm-key';
+    const signed: SignedSuggestionPacket = {
+      ...makePacket(),
+      packet_format: 'in-toto',
+      verification_material: { hmac_signature: '', signing_key_id: 'env-key' },
+    };
+    expect(verifyPacket(signed, key)).toBe(false);
+  });
+
+  it('returns false for in-toto packet with completely spoofed predicate content', () => {
+    const key = 'intoto-spoof-key';
+    const legit = signPacket(makePacket(), key, 'in-toto');
+    // Spoof: keep verification_material from legit, but change claim
+    const spoofed: SignedSuggestionPacket = {
+      ...makePacket({ claim: 'completely different spoofed claim' }),
+      packet_format: 'in-toto',
+    };
+    expect(verifyPacket(spoofed, key)).toBe(false);
+  });
+});
 
   it('returns false when no key provided and env var is unset', () => {
     const key = process.env.SUGGESTION_SIGNING_KEY;

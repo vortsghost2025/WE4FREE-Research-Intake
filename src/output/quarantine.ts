@@ -8,6 +8,8 @@ const POLICY_EVAL_TOOL = 'opa'; // shell out to `opa eval` on the classpath
 /**
  * Write signed suggestion packets to quarantine JSONL file.
  * Quarantine ensures no direct autonomous patching without review.
+ *
+ * @returns path to the created quarantine JSONL file
  */
 export function writeToQuarantine(packets: SignedSuggestionPacket[], quarantineDir: string): string {
   if (!fs.existsSync(quarantineDir)) {
@@ -132,3 +134,22 @@ function isToolInPath(tool: string): boolean {
     return false;
   }
 }
+
+// ─── Internal helpers exposed for unit tests ─────────────────────────────────
+
+/**
+ * @internal — exported only for test suites
+ * Build a Rego-evaluation input record from a SignedSuggestionPacket.
+ */
+export function __testOnly_buildRegoInput(packet: SignedSuggestionPacket): Record<string, any> {
+  return buildRegoInput(packet);
+}
+
+/**
+ * @internal — exported only for test suites
+ * Parse raw OPA `data.we4free.quarantine` output into PolicyResult.
+ */
+export function __testOnly_parseOpaOutput(raw: string): PolicyResult | null {
+  return parseOpaOutput(raw);
+}
+

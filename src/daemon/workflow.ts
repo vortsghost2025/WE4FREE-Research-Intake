@@ -68,7 +68,7 @@ export function buildIntakeGraph() {
 /** Build and compile the workflow with an in-memory checkpoint saver. */
 export function compileIntakeWorkflow() {
   const graph = buildIntakeGraph();
-  return graph.compile({ checkpointer: new MemorySaver() });
+  return graph.compile({ checkpointer: new MemorySaver(), interruptBefore: ['quarantine'] });
 }
 
 // ── Node implementations ──────────────────────────────────────────────

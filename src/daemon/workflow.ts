@@ -60,6 +60,7 @@ export function buildIntakeGraph() {
     .addEdge(START, 'discover')
     .addEdge('discover', 'normalize')
     .addEdge('normalize', 'quarantine')
+    .addEdge('quarantine', 'sign_and_report')   // required edge — reachable execution path
     .addEdge('sign_and_report', END);
 
   return graph;

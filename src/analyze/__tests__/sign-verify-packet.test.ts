@@ -101,6 +101,14 @@ describe('verifyPacket', () => {
     const result = verifyPacket(noSig, key);
     expect(result).toBe(false);
   });
+
+  it('returns false when no key provided and env var is unset', () => {
+    const key = process.env.SUGGESTION_SIGNING_KEY;
+    delete process.env.SUGGESTION_SIGNING_KEY;
+    const result = verifyPacket(makePacket());
+    expect(result).toBe(false);
+    if (key) process.env.SUGGESTION_SIGNING_KEY = key;
+  });
 });
 
 // ── Audit 1: in-toto envelope generate + verify ────────────────────────────
@@ -179,14 +187,5 @@ describe('malformed in-toto packet', () => {
       packet_format: 'in-toto',
     };
     expect(verifyPacket(spoofed, key)).toBe(false);
-  });
-});
-
-  it('returns false when no key provided and env var is unset', () => {
-    const key = process.env.SUGGESTION_SIGNING_KEY;
-    delete process.env.SUGGESTION_SIGNING_KEY;
-    const result = verifyPacket(makePacket());
-    expect(result).toBe(false);
-    if (key) process.env.SUGGESTION_SIGNING_KEY = key;
   });
 });

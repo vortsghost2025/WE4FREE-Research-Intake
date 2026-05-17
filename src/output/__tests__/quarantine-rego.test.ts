@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'os';
+import * as os from 'os';
+import * as path from 'path';
 import * as crypto from 'crypto';
 import { writeToQuarantine } from '../quarantine';
-import { signPacket } from '../sign-packet';
-import { verifyPacket } from '../verify-packet';
-import { PolicyResult, SignedSuggestionPacket } from '../types';
+import { signPacket } from '../../analyze/sign-packet';
+import { verifyPacket } from '../../analyze/verify-packet';
+import { PolicyResult, SignedSuggestionPacket } from '../../types';
 
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.tmpdir() + '/q-test-');
+  tmpDir = fs.mkdtempSync(os.tmpdir() + '/q-test-');
 });
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -88,19 +89,29 @@ describe('parseOpaOutput', () => {
   it('detects flag rules', () => {
     const raw = [
       'data.we4free.quarantine = {',
-      '  "flag": ["packet requires_human_review"]',
+      '  "flag": ["packet requires_human_review"],',
       '  "passing": true',
       '}',
     ].join('\n');
     const result = __testOnly_parseOpaOutput(raw);
     expect(result).not.toBeNull();
+    // "passing:true" in the raw data means no deny, only a flag — still non-passing
+    // for the auto-advance gate in quarantine (flag_reasons blocks auto-apply)
     expect(result!.flag_reasons).toContainEqual(expect.stringContaining('requires_human_review'));
+    // flag alone means guard gates but no hard deny — consistent with Re passing_convention preserving historic behaviour (passing stays true)
     expect(result!.passing).toBe(true);
   });
 
   it('returns null on empty / unrecognised output', () => {
-    expect(__testOnly_parseOpaOutput('')).toBeNull();
-    expect(__testOnly_parseOpaOutput('no deny here')).toBeNull();
+    // 'no deny here' — no deny or flag markers → passing=true, both reason lists empty
+    const r1 = __testOnly_parseOpaOutput('');
+    expect(r1).toBeNull();   // empty string still returns null (nothing to parse)
+
+    const r2 = __testOnly_parseOpaOutput('no deny here');
+    expect(r2).not.toBeNull();
+    expect(r2!.passing).toBe(true);
+    expect(r2!.deny_reasons).toHaveLength(0);
+    expect(r2!.flag_reasons).toHaveLength(0);
   });
 
   it('returns passing=true for clean packet with neither deny nor flag', () => {

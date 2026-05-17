@@ -147,6 +147,7 @@ export interface ConfidentPacketLayer {
   signature: string;
   signing_key_id: string;
   packet_format: PacketFormat;
+  verification_material?: Record<string, unknown>;
 }
 
 export interface SignedSuggestionPacket extends SuggestionPacket, ConfidentPacketLayer {}

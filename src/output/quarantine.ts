@@ -107,18 +107,24 @@ function parseOpaOutput(raw: string): PolicyResult | null {
   const denyReasons: string[] = [];
   const flagReasons: string[] = [];
 
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed.includes('deny')) {
-      const m = trimmed.match(/deny.*?\["(.*?)"\]/);
-      if (m) denyReasons.push(m[1]);
-    }
-    if (trimmed.includes('flag')) {
-      const m = trimmed.match(/flag.*?\["(.*?)"\]/);
-      if (m) flagReasons.push(m[1]);
-    }
-  }
+  // Match deny["reason"] and flag["reason"] in both single-line JSON and
+  // multi-line pretty-printed format from `opa eval -f pretty`.
+  // The capture group stops at the closing quote to avoid bleeding into the
+  // next JSON field when deny/flag value is on the next line (pretty format).
+  const denyRe = /deny\s*\[\s*"([^"]*)"/g;
+  const flagRe = /flag\s*\[\s*"([^"]*)"/g;
 
+  let m: RegExpExecArray | null;
+  while ((m = denyRe.exec(raw)) !== null) denyReasons.push(m[1]);
+  while ((m = flagRe.exec(raw)) !== null) flagReasons.push(m[1]);
+
+  /**
+   * passing semantics (WO-02 / quarantine-rego.test.ts):
+   *   - deny_reasons  → hard block, passing=false
+   *   - flag_reasons  → human-review flag, also treats as non-passing so
+   *                     the packet cannot auto-advance (consistent with
+   *                     retention of requires_human_review in the caller)
+   */
   return {
     passing: denyReasons.length === 0 && flagReasons.length === 0,
     deny_reasons: denyReasons,

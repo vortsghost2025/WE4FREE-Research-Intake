@@ -17,8 +17,10 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
 };
 
 function getWeight(name: string): number {
-  const raw = parseFloat(process.env[`SCORE_WEIGHT_${name.toUpperCase()}`] || 'nan');
-  if (isNaN(raw)) return DEFAULT_WEIGHTS[name] ?? 0;
+  const envKey = `SCORE_WEIGHT_${name.toUpperCase()}`;
+  if (!(envKey in process.env)) return 0;   // unset → 0; caller handles normalization/fallback
+  const raw = parseFloat(process.env[envKey] || '');
+  if (isNaN(raw)) return 0;
   return Math.min(Math.max(raw, 0), 1);
 }
 
